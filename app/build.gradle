@@ -1,0 +1,79 @@
+plugins {
+    alias(libs.plugins.android.application)
+}
+
+android {
+    namespace 'com.translator.vsl'
+    compileSdk 34
+
+    viewBinding {
+        enabled = true
+    }
+    dataBinding {
+        enabled = true
+    }
+
+    defaultConfig {
+        applicationId "com.translator.vsl"
+        minSdk 29
+        targetSdk 34
+        versionCode 1
+        versionName "1.0"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
+    }
+    buildFeatures {
+        mlModelBinding true
+    }
+
+    aaptOptions {
+        noCompress "tflite"
+        noCompress "lite"
+    }
+}
+
+dependencies {
+
+    implementation libs.appcompat
+    implementation libs.material
+    implementation libs.activity
+    implementation libs.constraintlayout
+    implementation libs.tensorflow.lite.metadata
+    testImplementation libs.junit
+    androidTestImplementation libs.ext.junit
+    androidTestImplementation libs.espresso.core
+    implementation libs.picasso
+
+    // CameraX core library using the camera2 implementation
+    def camerax_version = "1.5.0-alpha03"
+    // The following line is optional, as the core library is included indirectly by camera-camera2
+    implementation libs.androidx.camera.core
+    implementation libs.androidx.camera.camera2
+    // If you want to additionally use the CameraX Lifecycle library
+    implementation libs.androidx.camera.lifecycle
+    // If you want to additionally use the CameraX VideoCapture library
+    implementation libs.androidx.camera.video
+    // If you want to additionally use the CameraX View class
+    implementation libs.androidx.camera.view
+    // If you want to additionally add CameraX ML Kit Vision Integration
+    implementation libs.androidx.camera.mlkit.vision
+    // If you want to additionally use the CameraX Extensions library
+    implementation libs.camera.extensions
+
+    implementation libs.tensorflow.lite
+    implementation libs.tensorflow.lite.support
+
+    
+
+}
