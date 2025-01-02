@@ -106,15 +106,15 @@ public class CameraActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        showToast("Video is translating...", true);
+                        showToast("Đang dịch từ, vui lòng đợi...", true);
                         Uri selectedVideoUri = result.getData().getData();
                         if (selectedVideoUri != null) {
                             viewModel.translateVideo(this, selectedVideoUri);
                         } else {
-                            showToast("No video selected", false);
+                            showToast("Không có video nào được chọn", false);
                         }
                     }else {
-                        showToast("No video selected", false);
+                        showToast("Không có video nào được chọn", false);
                     }
                 }
         );

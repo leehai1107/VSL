@@ -66,10 +66,24 @@
             android:layout_width="200dp"
             android:layout_height="50dp"
             android:layout_marginHorizontal="50dp"
-            android:layout_marginTop="120dp"
+            android:layout_marginTop="100dp"
             android:textSize="16sp"
+            android:textColor="@color/white"
             android:backgroundTint="@color/main"
+            android:background="@drawable/button"
             android:text="@string/btnStart" />
+
+        <Button
+            android:id="@+id/btnDictionary"
+            android:layout_width="200dp"
+            android:layout_height="50dp"
+            android:layout_marginHorizontal="50dp"
+            android:layout_marginTop="20dp"
+            android:textSize="16sp"
+            android:textColor="@color/white"
+            android:backgroundTint="@color/main"
+            android:background="@drawable/button"
+            android:text="@string/btnDictionary" />
 
         <LinearLayout
             android:id="@+id/etc"

@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 public class VideoTranslationHandler {
     private static final String TAG = "VideoTranslationHandler";
@@ -182,7 +183,7 @@ public class VideoTranslationHandler {
                         HashMap<String, Object> outputs = initializeOutput();
 
                         // Extract and preprocess video frames
-                        TensorImage tensorImage = preprocessInputImage(frame, INPUT_HEIGHT, INPUT_WIDTH);
+                        TensorImage tensorImage = preprocessInputImage(frame,INPUT_WIDTH,INPUT_HEIGHT);
                         inputState.put(IMAGE_INPUT_NAME, tensorImage.getBuffer());
 
                         tflite.runSignature(inputState, outputs);
@@ -196,12 +197,23 @@ public class VideoTranslationHandler {
                     // Compare the categories sorted by score and log the one with the highest score
                     categories.sort((c1, c2) -> Float.compare(c2.getScore(), c1.getScore()));
 
+                    // the label with the top 3 highest scores mapped to a string by use labelMap.getOrDefault, the delimeter is increased from 1 to 3
+                    // Ex:  1. Abc \n  2. Def \n  3. Ghi
+//                    String result = new String();
+//
+//                    for (int i = 0; i < 5; i++) {
+//                        Category category = categories.get(i);
+//                        result += (i+1) + ". " + labelMap.getOrDefault(Integer.parseInt(category.getLabel()), "Unknown") + "\n";
+//                    }
+//
+//                    return result;
 
                     // Get the label index with the highest score
                     int highestLabelIndex = Integer.parseInt(categories.get(0).getLabel());
 
                     // Map the index to its textual description
-                    return labelMap.getOrDefault(highestLabelIndex, "Unknown word")  + " (" + categories.get(0).getScore()*100 + ")%";
+                    return "- "+labelMap.getOrDefault(highestLabelIndex, "Unknown word");
+
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error translating video: " + e.getMessage());

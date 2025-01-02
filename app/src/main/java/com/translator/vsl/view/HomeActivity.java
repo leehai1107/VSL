@@ -42,6 +42,12 @@ public class HomeActivity extends AppCompatActivity {
             overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
         });
 
+        binding.btnDictionary.setOnClickListener(v -> {
+            Intent intent = new Intent(this, MenuActivity.class);
+            startActivity(intent);
+            overridePendingTransition(R.anim.slide_in_right, R.anim.slide_out_left);
+        });
+
         OnBackPressedDispatcher onBackPressedDispatcher = getOnBackPressedDispatcher();
         onBackPressedDispatcher.addCallback(this, new OnBackPressedCallback(true) {
             @Override

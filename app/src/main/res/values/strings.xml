@@ -3,11 +3,18 @@
     <string name="version">Version 1.0.0</string>
     <string name="terms">Terms</string>
     <string name="btnStart">Translate</string>
+    <string name="btnDictionary">Dictionary</string>
     <string name="bannerText">Vietnamese Sign Language Translator</string>
     <string name="baseTimer">00:00</string>
     <string name="backToast">Press back again to exit</string>
     <string name="word_option">Word</string>
     <string name="sentence_option">Sentence</string>
+
+
+<!-- Change server address -->
+    <string name="serverAddress">http://192.168.101.6</string>
+    <string name="serverPort">8000</string>
+
 
     <string-array name="translateOptions">
         <item>Word</item>
