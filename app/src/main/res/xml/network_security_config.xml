@@ -3,5 +3,6 @@
     <domain-config cleartextTrafficPermitted="true">
 <!--        Change server address -->
         <domain includeSubdomains="true">192.168.101.6</domain>
+        <domain includeSubdomains="true">115.76.50.187</domain>
     </domain-config>
 </network-security-config>

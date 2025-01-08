@@ -41,6 +41,7 @@ android {
         noCompress "tflite"
         noCompress "lite"
     }
+
 }
 
 dependencies {
@@ -74,6 +75,10 @@ dependencies {
     implementation libs.tensorflow.lite
     implementation libs.tensorflow.lite.support
 
-    
+//// https://mvnrepository.com/artifact/com.google.mediapipe/solution-core
+//    implementation(libs.solution.core)
+
+    implementation 'com.google.mediapipe:tasks-vision:latest.release'
+
 
 }

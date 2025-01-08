@@ -4,7 +4,6 @@ import static java.lang.Math.min;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.media.MediaMetadataRetriever;
@@ -18,7 +17,6 @@ import org.tensorflow.lite.support.image.ImageProcessor;
 import org.tensorflow.lite.support.image.TensorImage;
 import org.tensorflow.lite.support.image.ops.ResizeOp;
 import org.tensorflow.lite.support.image.ops.ResizeWithCropOrPadOp;
-import org.tensorflow.lite.support.image.ops.Rot90Op;
 import org.tensorflow.lite.support.label.Category;
 
 import java.io.BufferedReader;
@@ -30,13 +28,10 @@ import java.nio.ByteOrder;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 public class VideoTranslationHandler {
     private static final String TAG = "VideoTranslationHandler";
@@ -176,7 +171,7 @@ public class VideoTranslationHandler {
         return CompletableFuture.supplyAsync(() -> {
             synchronized (lock) {
                 try {
-                    List<Bitmap> videoFrames = extractFramesFromVideoAsync(context, videoUri, 13).join(); // Wait for frames
+                    List<Bitmap> videoFrames = extractFramesFromVideoAsync(context, videoUri, 20).join(); // Wait for frames
                     List<Category> categories = new ArrayList<>();
 
                     for (Bitmap frame : videoFrames) {
@@ -212,12 +207,12 @@ public class VideoTranslationHandler {
                     int highestLabelIndex = Integer.parseInt(categories.get(0).getLabel());
 
                     // Map the index to its textual description
-                    return "- "+labelMap.getOrDefault(highestLabelIndex, "Unknown word");
+                    return labelMap.getOrDefault(highestLabelIndex, "Unknown word");
 
 
                 } catch (Exception e) {
                     Log.e(TAG, "Error translating video: " + e.getMessage());
-                    return "Error translating video: " + e.getMessage();
+                    return "Lỗi khi dịch: " + e.getMessage();
                 }
             }
         });

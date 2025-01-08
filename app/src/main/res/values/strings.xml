@@ -7,13 +7,8 @@
     <string name="bannerText">Vietnamese Sign Language Translator</string>
     <string name="baseTimer">00:00</string>
     <string name="backToast">Press back again to exit</string>
-    <string name="word_option">Word</string>
-    <string name="sentence_option">Sentence</string>
-
-
-<!-- Change server address -->
-    <string name="serverAddress">http://192.168.101.6</string>
-    <string name="serverPort">8000</string>
+    <string name="word_option">Normal</string>
+    <string name="realtime_option">Real Time</string>
 
 
     <string-array name="translateOptions">

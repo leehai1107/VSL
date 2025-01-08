@@ -1,9 +1,15 @@
 package com.translator.vsl.viewmodel;
 
+import static com.translator.vsl.handler.VideoUtils.createVideoFromBitmaps;
+
+import android.app.Application;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Matrix;
+import android.media.MediaMetadataRetriever;
 import android.net.ConnectivityManager;
 import android.net.Network;
 import android.net.NetworkCapabilities;
@@ -14,9 +20,13 @@ import android.Manifest;
 import android.speech.tts.TextToSpeech;
 import android.util.Log;
 
-
+import androidx.annotation.NonNull;
+import androidx.annotation.OptIn;
 import androidx.camera.core.Camera;
 import androidx.camera.core.CameraSelector;
+import androidx.camera.core.ExperimentalGetImage;
+import androidx.camera.core.ImageAnalysis;
+import androidx.camera.core.ImageProxy;
 import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.video.MediaStoreOutputOptions;
@@ -30,12 +40,14 @@ import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.util.Pair;
+import androidx.lifecycle.AndroidViewModel;
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.ViewModel;
 
 import com.google.common.util.concurrent.ListenableFuture;
-import com.translator.vsl.R;
+import com.google.mediapipe.tasks.vision.core.RunningMode;
+import com.translator.vsl.handler.CalculateUtils;
+import com.translator.vsl.handler.PoseLandmarkerHelper;
 import com.translator.vsl.handler.VideoTranslationHandler;
 import com.translator.vsl.view.CameraActivity;
 
@@ -50,7 +62,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -64,7 +80,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 
-public class CameraViewModel extends ViewModel {
+public class CameraViewModel extends AndroidViewModel {
 
     private final MutableLiveData<String> timerText = new MutableLiveData<>("00:00");
     private final MutableLiveData<Boolean> captureButtonState = new MutableLiveData<>(false);
@@ -81,7 +97,9 @@ public class CameraViewModel extends ViewModel {
     private final Runnable timerRunnable;
     private final Handler timerHandler = new Handler();
     private TextToSpeech tts;
-
+    private PoseLandmarkerHelper framesHandler;
+    private ImageAnalysis imageAnalysis;
+    private Context context;
 
     public LiveData<Boolean> getFlashEnabledState() {
         return flashEnabled;
@@ -97,7 +115,8 @@ public class CameraViewModel extends ViewModel {
         return isRecording;
     }
 
-    public CameraViewModel() {
+    public CameraViewModel(@NonNull Application application) {
+        super(application);
         timerRunnable = new Runnable() {
             @Override
             public void run() {
@@ -136,27 +155,46 @@ public class CameraViewModel extends ViewModel {
                         .build();
                 videoCapture = VideoCapture.withOutput(recorder);
 
+                // Initialize ImageAnalysis if not already initialized
+                if (imageAnalysis == null) {
+                    imageAnalysis = new ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build();
+                }
+
+                context = previewView.getContext();
+
                 CameraSelector cameraSelector = new CameraSelector.Builder()
                         .requireLensFacing(cameraFacing).build();
 
                 cameraProvider.unbindAll();
-                Camera camera = cameraProvider.bindToLifecycle((CameraActivity) previewView.getContext(), cameraSelector, preview, videoCapture);
+                Camera camera = cameraProvider.bindToLifecycle(
+                        (CameraActivity) previewView.getContext(),
+                        cameraSelector,
+                        preview,
+                        imageAnalysis,
+                        videoCapture);
                 setCamera(camera);
             } catch (Exception e) {
-                toastMessage.postValue(new Pair<>("Error starting camera: "+e.getMessage(), false));
+                Log.e("CameraError", "Error starting camera: " + e.getMessage());
+                toastMessage.postValue(new Pair<>("Error starting camera: " + e.getMessage(), false));
             }
         }, ContextCompat.getMainExecutor(previewView.getContext()));
     }
 
-    public void captureVideo( PreviewView previewView) {
+
+    public void captureVideoWithOptions( PreviewView previewView,boolean isRealTime) {
         if (recording != null) {
             stopRecording();
-        } else {
-            startRecording(previewView);
+        } else if (isRealTime) {
+            startRecordingRealTime(previewView);
+        }else {
+            startRecordingNormal(previewView);
         }
     }
 
-    private void startRecording( PreviewView previewView) {
+
+    private void startRecordingNormal( PreviewView previewView) {
         String name = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.getDefault()).format(System.currentTimeMillis());
         ContentValues contentValues = new ContentValues();
         contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
@@ -178,10 +216,178 @@ public class CameraViewModel extends ViewModel {
                 captureButtonState.postValue(true);
                 isRecording.postValue(true);  // Set recording state to true
             } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
-                handleRecordingFinalization((VideoRecordEvent.Finalize) videoRecordEvent, previewView);
+                handleRecordingFinalizationNormal((VideoRecordEvent.Finalize) videoRecordEvent, previewView);
             }
         });
 
+    }
+
+
+
+    // Updated startRecording method
+    private void startRecordingRealTime(PreviewView previewView) {
+        String name = new SimpleDateFormat("yyyy-MM-dd-HH-mm-ss-SSS", Locale.getDefault()).format(System.currentTimeMillis());
+        ContentValues contentValues = new ContentValues();
+        contentValues.put(MediaStore.MediaColumns.DISPLAY_NAME, name);
+        contentValues.put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4");
+        contentValues.put(MediaStore.Video.Media.RELATIVE_PATH, "Movies/CameraX-Video");
+
+        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(previewView.getContext()), this::analyzeFrame);
+
+
+        framesHandler = new PoseLandmarkerHelper(
+                0.5f,
+                0.5f,
+                0.5f,
+                1,
+                1,
+                RunningMode.IMAGE,
+                previewView.getContext(),
+                listener
+                );
+
+
+        MediaStoreOutputOptions options = new MediaStoreOutputOptions.Builder(previewView.getContext().getContentResolver(), MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+                .setContentValues(contentValues).build();
+
+        if (ActivityCompat.checkSelfPermission(previewView.getContext(), Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            toastMessage.postValue(new Pair<>("Missing RECORD_AUDIO permission", false));
+            return;
+        }
+
+        recordingStartTime = System.currentTimeMillis();
+        timerHandler.post(timerRunnable);
+
+
+        // Start video capture with frame analysis
+        recording = videoCapture.getOutput().prepareRecording(previewView.getContext(), options).withAudioEnabled(true)
+                .start(ContextCompat.getMainExecutor(previewView.getContext()), videoRecordEvent -> {
+                    if (videoRecordEvent instanceof VideoRecordEvent.Start) {
+                        captureButtonState.postValue(true);
+                        isRecording.postValue(true);  // Set recording state to true
+                    } else if (videoRecordEvent instanceof VideoRecordEvent.Finalize) {
+                        handleRecordingFinalizationRealTime((VideoRecordEvent.Finalize) videoRecordEvent, previewView);
+                    }
+                });
+    }
+
+    // List to store frames for the current segment
+    private final List<Bitmap> frameBuffer = new ArrayList<>();
+    private boolean isCropping = false;
+
+    // Analyze each frame
+    private void analyzeFrame(ImageProxy imageProxy) {
+        // Convert the ImageProxy to a format compatible with MediaPipe (e.g., Bitmap)
+        Bitmap bitmap = rotateBitmap(imageProxyToBitmap(imageProxy),90);
+
+        PoseLandmarkerHelper.ResultBundle resultBundle = framesHandler.detectImage(bitmap);
+
+        if(!resultBundle.results.isEmpty()) {
+           boolean[] handStatus =  CalculateUtils.checkHandStatus(
+                   resultBundle.results.get(0),160);
+           Log.d("DataOfHand: [0,0] || [1,1] || [0,1] || [1,0]", Arrays.toString(handStatus));
+           // Todo: Crop the video in real-time then call translate function to translate the video
+
+            if (!Arrays.equals(handStatus, new boolean[]{false, false})) {
+                // Start or continue cropping
+                isCropping = true;
+                frameBuffer.add(bitmap);
+            } else if (isCropping) {
+                // Stop cropping and process the segment
+                isCropping = false;
+                processVideoSegment();
+                frameBuffer.clear();
+            }
+
+        }else {
+            Log.d("Skip", "No hand detected");
+        }
+
+
+        // Close the image to allow the analyzer to proceed
+        imageProxy.close();
+    }
+
+    private void processVideoSegment() {
+        if (frameBuffer.isEmpty()) return;
+
+        // Save frames to a video file
+        try {
+            Uri videoPath = createVideoFromBitmaps(context,frameBuffer,30);
+
+            translateVideo(context,videoPath);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    PoseLandmarkerHelper.LandmarkerListener listener = new PoseLandmarkerHelper.LandmarkerListener() {
+        @Override
+        public void onError(String error, int errorCode) {
+            // Handle the error here
+            Log.e("PoseLandmarkerHelper", "Error: " + error + ", Code: " + errorCode);
+        }
+
+        @Override
+        public void onResults(PoseLandmarkerHelper.ResultBundle resultBundle) {
+            // Handle the results here
+            Log.d("PoseLandmarkerHelper", "Results received: " + resultBundle.results.size() + " poses detected");
+        }
+    };
+
+
+
+    // Convert ImageProxy to Bitmap
+    @OptIn(markerClass = ExperimentalGetImage.class)
+    private Bitmap imageProxyToBitmap(ImageProxy imageProxy) {
+        // Conversion logic (depends on your use case)
+        // For example, use YUV_420_888 to RGB conversion
+        // ...
+        return CalculateUtils.yuvToRgb(Objects.requireNonNull(imageProxy.getImage()));
+    }
+
+    public Bitmap rotateBitmap(Bitmap bitmap, float degrees) {
+        // Create a new Matrix for the rotation
+        Matrix matrix = new Matrix();
+        // Set the rotation
+        matrix.postRotate(degrees);
+
+        // Create the new rotated Bitmap
+
+        return Bitmap.createBitmap(
+                bitmap,
+                0, 0,
+                bitmap.getWidth(),
+                bitmap.getHeight(),
+                matrix,
+                true
+        );
+    }
+
+
+    private void handleRecordingFinalizationRealTime(VideoRecordEvent.Finalize finalizeEvent, PreviewView previewView) {
+        captureButtonState.postValue(false);
+        timerHandler.removeCallbacks(timerRunnable);
+        timerText.postValue("00:00");
+        isRecording.postValue(false);  // Set recording state to false when finished
+
+        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(previewView.getContext()), ImageProxy::close);
+    }
+
+    private void handleRecordingFinalizationNormal(VideoRecordEvent.Finalize finalizeEvent, PreviewView previewView) {
+        captureButtonState.postValue(false);
+        timerHandler.removeCallbacks(timerRunnable);
+        timerText.postValue("00:00");
+        isRecording.postValue(false);  // Set recording state to false when finished
+
+        imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(previewView.getContext()), ImageProxy::close);
+
+        try {
+            translateVideo(previewView.getContext(), finalizeEvent.getOutputResults().getOutputUri());
+        } catch (Exception e) {
+            // Log error
+            Log.e("TranslateError", "Error translating video: " + e.getMessage());
+        }
     }
 
     private void stopRecording() {
@@ -193,24 +399,7 @@ public class CameraViewModel extends ViewModel {
             isRecording.postValue(false);  // Set recording state to false
         }
         captureButtonState.postValue(false);
-        toastMessage.postValue(new Pair<>("Đang dịch từ, vui lòng đợi...", true));
     }
-
-    private void handleRecordingFinalization(VideoRecordEvent.Finalize finalizeEvent, PreviewView previewView) {
-        captureButtonState.postValue(false);
-        timerHandler.removeCallbacks(timerRunnable);
-        timerText.postValue("00:00");
-        isRecording.postValue(false);  // Set recording state to false when finished
-
-
-        try {
-            translateVideo(previewView.getContext(), finalizeEvent.getOutputResults().getOutputUri());
-        } catch (Exception e) {
-            // Log error
-            Log.e("TranslateError", "Error translating video: " + e.getMessage());
-        }
-    }
-
 
     public void initializeTextToSpeech(Context context) {
          tts = new TextToSpeech(context, status -> {
@@ -241,88 +430,17 @@ public class CameraViewModel extends ViewModel {
         }));
     }
 
-//    public void translateVideo(Context context, Uri videoUri) {
-//        VideoTranslationHandler translator;
-//       initializeTextToSpeech(context);
-//
-//        try {
-//            translator = new VideoTranslationHandler(context, "model-400.tflite", "label400.txt");
-//            VideoTranslationHandler finalTranslator = translator; // Reference for closure
-//
-//            // Call the .tflite model to translate the video
-//            translator.translateVideoAsync(context, videoUri)
-//                    .thenAccept(result -> {
-//                        Log.d("TranslationResult", "Translation: " + result);
-//
-//                        // Update UI with translation result
-//                        toastMessage.postValue(new Pair<>("Có thể ý bạn là từ sau? \n" + result, true));
-//
-//                        // Convert the translation result to speech
-//                        tts.speak(result, TextToSpeech.QUEUE_FLUSH, null, UUID.randomUUID().toString());
-//
-//                        // Close the interpreter after task completion
-//                        finalTranslator.close();
-//                    })
-//                    .exceptionally(ex -> {
-//                        Log.e("TranslationError", "Error: " + ex.getMessage());
-//                        toastMessage.postValue(new Pair<>("Error: " + ex.getMessage(), true));
-//
-//                        // Ensure resources are closed even on error
-//                        finalTranslator.close();
-//                        return null;
-//                    });
-//
-//        } catch (IOException e) {
-//            Log.e("LoadModelErr", "Error translating video: " + e.getMessage());
-//            toastMessage.postValue(new Pair<>("Error loading model: " + e.getMessage(), false));
-//        }
-//
-//        // Optional: Shut down TTS when done (e.g., in an activity's onDestroy)
-//        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-//            if (tts != null) {
-//                tts.stop();
-//                tts.shutdown();
-//            }
-//        }));
-//    }
-//
-
     public void translateVideo(Context context, Uri videoUri) {
-        VideoTranslationHandler translator;
         initializeTextToSpeech(context);
 
         if (isInternetAvailable(context)) {
             // Call the API to translate the video
+            toastMessage.postValue(new Pair<>("Đang dịch trực tuyến, vui lòng đợi...", true));
             callTranslationApi(context, videoUri);
         } else {
             // Fallback to .tflite model for offline translation
-            try {
-                translator = new VideoTranslationHandler(context, "model-400.tflite", "label400.txt");
-                VideoTranslationHandler finalTranslator = translator; // Reference for closure
-
-                translator.translateVideoAsync(context, videoUri)
-                        .thenAccept(result -> {
-                            Log.d("TranslationResult", "Translation: " + result);
-
-                            // Update UI with translation result
-                            toastMessage.postValue(new Pair<>("Có thể ý bạn là từ sau? \n" + result, true));
-
-                            // Convert the translation result to speech
-                            tts.speak(result, TextToSpeech.QUEUE_FLUSH, null, UUID.randomUUID().toString());
-
-                            finalTranslator.close();
-                        })
-                        .exceptionally(ex -> {
-                            Log.e("TranslationError", "Error: " + ex.getMessage());
-                            toastMessage.postValue(new Pair<>("Error: " + ex.getMessage(), true));
-                            finalTranslator.close();
-                            return null;
-                        });
-
-            } catch (IOException e) {
-                Log.e("LoadModelErr", "Error translating video: " + e.getMessage());
-                toastMessage.postValue(new Pair<>("Error loading model: " + e.getMessage(), false));
-            }
+            toastMessage.postValue(new Pair<>("Không có kết nối mạng, đang dịch ngoại tuyến ...", true));
+            callTranslationModel(context, videoUri);
         }
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
@@ -331,6 +449,36 @@ public class CameraViewModel extends ViewModel {
                 tts.shutdown();
             }
         }));
+    }
+
+    private void callTranslationModel(Context context, Uri videoUri) {
+        try {
+
+            VideoTranslationHandler translator = new VideoTranslationHandler(context, "model-final-new.tflite", "label400.txt");
+
+            translator.translateVideoAsync(context, videoUri)
+                    .thenAccept(result -> {
+                        Log.d("TranslationResult", "Translation: " + result);
+
+                        // Update UI with translation result
+                        toastMessage.postValue(new Pair<>("Có thể ý bạn là từ sau? \n" + result, true));
+
+                        // Convert the translation result to speech
+                        tts.speak(result, TextToSpeech.QUEUE_FLUSH, null, UUID.randomUUID().toString());
+
+                        translator.close();
+                    })
+                    .exceptionally(ex -> {
+                        Log.e("TranslationError", "Error: " + ex.getMessage());
+                        toastMessage.postValue(new Pair<>("Đã xảy ra lỗi khi dịch: \n " + ex.getMessage(), true));
+                        translator.close();
+                        return null;
+                    });
+
+        } catch (IOException e) {
+            Log.e("LoadModelErr", "Error translating video: " + e.getMessage());
+            toastMessage.postValue(new Pair<>("Đã xảy ra lỗi khi dịch: \n " + e.getMessage(), false));
+        }
     }
 
     // Utility method to check internet connectivity
@@ -350,7 +498,7 @@ public class CameraViewModel extends ViewModel {
 
     // Method to call the translation API
     private void callTranslationApi(Context context, Uri videoUri) {
-        String apiUrl = R.string.serverAddress + ":" + R.string.serverPort + "/spoter";
+        String apiUrl = "http://192.168.101.6:8000/spoter";
         String angleThreshold = "110";
         String topK = "3";
 
@@ -376,7 +524,7 @@ public class CameraViewModel extends ViewModel {
                 @Override
                 public void onFailure(Call call, IOException e) {
                     Log.e("APIError", "Error calling API: " + e.getMessage());
-                    toastMessage.postValue(new Pair<>("Error calling API: " + e.getMessage(), true));
+                    toastMessage.postValue(new Pair<>("Không thể kết nối tới máy chủ: \n " + e.getMessage(), true));
                 }
 
                 @Override
@@ -419,14 +567,14 @@ public class CameraViewModel extends ViewModel {
                         tts.speak(gloss, TextToSpeech.QUEUE_FLUSH, null, UUID.randomUUID().toString());
                     } else {
                         Log.e("APIError", "API response not successful: " + response.code());
-                        toastMessage.postValue(new Pair<>("API error: " + response.code(), true));
+                        toastMessage.postValue(new Pair<>("Lỗi khi gọi tới máy chủ:\n Mã lỗi  " + response.code(), true));
                     }
                 }
             });
 
         } catch (Exception e) {
             Log.e("APIRequestError", "Error preparing API request: " + e.getMessage());
-            toastMessage.postValue(new Pair<>("Error preparing API request: " + e.getMessage(), true));
+            toastMessage.postValue(new Pair<>("Đã xảy ra lỗi khi gọi tới máy chủ: \n " + e.getMessage(), true));
         }
     }
 
@@ -465,8 +613,6 @@ public class CameraViewModel extends ViewModel {
             toastMessage.postValue(new Pair<>("Flash is not available at this time.", false));
         }
     }
-
-
 
 
 

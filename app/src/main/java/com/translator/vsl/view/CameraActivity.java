@@ -7,23 +7,20 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.provider.MediaStore;
-import android.util.Log;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageButton;
 import android.widget.PopupWindow;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.widget.SwitchCompat;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.view.PreviewView;
 import androidx.core.app.ActivityCompat;
@@ -45,8 +42,8 @@ public class CameraActivity extends AppCompatActivity {
     private int cameraFacing = CameraSelector.LENS_FACING_BACK;
     private Toast currentToast;
     private PopupWindow currentPopupWindow = null;  // Track the current PopupWindow
-    private final int PICK_VIDEO_REQUEST = 22;
     private ActivityResultLauncher<Intent> videoPickerLauncher;
+    private SwitchCompat translateOption;
 
 
 
@@ -76,7 +73,7 @@ public class CameraActivity extends AppCompatActivity {
 
         binding.translateOption.setOnCheckedChangeListener((buttonView, isChecked) -> {
             if (isChecked) {
-                binding.translateOptionText.setText(R.string.sentence_option);
+                binding.translateOptionText.setText(R.string.realtime_option);
             } else {
                 binding.translateOptionText.setText(R.string.word_option);
             }
@@ -106,7 +103,6 @@ public class CameraActivity extends AppCompatActivity {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
-                        showToast("Đang dịch từ, vui lòng đợi...", true);
                         Uri selectedVideoUri = result.getData().getData();
                         if (selectedVideoUri != null) {
                             viewModel.translateVideo(this, selectedVideoUri);
@@ -127,6 +123,7 @@ public class CameraActivity extends AppCompatActivity {
         toggleFlash = binding.toggleFlash;
         flipCamera = binding.flipCamera;
         videoStorage = binding.videoStorage;
+        translateOption=binding.translateOption;
 
 
         capture.setOnClickListener(view -> checkPermissionsAndCapture());
@@ -162,7 +159,7 @@ public class CameraActivity extends AppCompatActivity {
                 ActivityCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             activityResultLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE);
         } else {
-            viewModel.captureVideo(previewView);
+            viewModel.captureVideoWithOptions(previewView, translateOption.isChecked());
         }
     }
 
