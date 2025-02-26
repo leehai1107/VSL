@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">VSL Translator</string>
+    <string name="version">Version 1.0.0</string>
+    <string name="terms">Terms</string>
+    <string name="btnStart">Translate</string>
+    <string name="btnDictionary">Dictionary</string>
+    <string name="bannerText">Vietnamese Sign Language Translator</string>
+    <string name="baseTimer">00:00</string>
+    <string name="backToast">Press back again to exit</string>
+    <string name="word_option">Normal</string>
+    <string name="realtime_option">Real Time</string>
+
+
+    <string-array name="translateOptions">
+        <item>Word</item>
+        <item>Sentence</item>
+    </string-array>
+</resources>

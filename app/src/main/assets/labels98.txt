@@ -1,0 +1,98 @@
+0,Bà ngoại
+1,Bà nội
+2,Báo cáo
+3,Bận
+4,Bắt buộc
+5,Bắt chước
+6,Bố
+7,Cao
+8,Cay
+9,Chăm chỉ
+10,Chạy
+11,Chật
+12,Chết
+13,Chồng
+14,Con bò
+15,Con chó
+16,Con dê
+17,Con gà
+18,Con gái
+19,Con heo
+20,Con mèo
+21,Con rùa
+22,Con thỏ
+23,Con trai
+24,Con trâu
+25,Con vịt
+26,Cung cấp
+27,Cười
+28,Cắm trại
+29,Dài
+30,Dũng cảm
+31,Dỗi
+32,Giỏi
+33,Hài hước
+34,Hát
+35,Hư
+36,Hẹp
+37,Học
+38,Khóc
+39,Không cho
+40,Không cần
+41,Không nghe lời
+42,Không nên
+43,Không quen
+44,Khỏe
+45,Lùn
+46,Lười biếng
+47,Mua bán
+48,Màu cam
+49,Màu hồng
+50,Màu nâu
+51,Màu trắng
+52,Màu tím
+53,Màu vàng
+54,Màu đen
+55,Màu đỏ
+56,Mách
+57,Múa
+58,Mập
+59,Mặn
+60,Mẹ
+61,Mệt
+62,Ngoan
+63,Ngon miệng
+64,Ngọt
+65,Nhạt
+66,Nhầm lẫn
+67,Nướng
+68,Nấu
+69,Quan sát
+70,Quả bơ
+71,Quả cam
+72,Quả chuối
+73,Quả dâu
+74,Quả dứa
+75,Quả dừa
+76,Quả mận
+77,Quả xoài
+78,Quả đu đủ
+79,Quả đào
+80,Rộng
+81,Sáng tạo
+82,Thèm
+83,Thú vị
+84,Tốt bụng
+85,Uống
+86,Vợ
+87,Xem
+88,Xấu
+89,Ông ngoại
+90,Ông nội
+91,Ăn
+92,Đau
+93,Đi
+94,Đậm
+95,Đắng
+96,Đẹp
+97,Ốm
